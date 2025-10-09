@@ -1,16 +1,16 @@
 # sudo.yazi
 
-Call `sudo` in yazi.
+Call `sudo` in yazi. This fork replaces the NuShell dependency in the original https://github.com/TD-Sky/sudo.yazi with Ruby or Python which are more commonly installed. Made using [Gemini CLI](https://geminicli.com).
 
 ## Installation
 
 ```bash
-$ ya pack -a TD-Sky/sudo
+$ ya pack -a iandol/sudo
 ```
 
 ## Requirements
 
-- [nushell](https://github.com/nushell/nushell)
+- [Ruby](https://ruby-lang.org) or [Python](https://python.org)
 
 ## Functions
 
