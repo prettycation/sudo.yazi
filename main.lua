@@ -21,7 +21,6 @@ end
 
 function string:ends_with_char(suffix)
     return self:sub(- #suffix) == suffix
-    return self:sub(- #suffix) == suffix
 end
 
 function string:is_path()
