@@ -1,3 +1,19 @@
+# sudo.yazi
+
+This is a Yazi plugin that allows you to run file operations with `sudo`.
+
+## Implementations
+
+This repository contains two implementations of the file operation logic:
+
+1.  **Python:** A Python implementation, located in `assets/fs.py`.
+2.  **Ruby:** A Ruby implementation, located in `assets/fs.rb`.
+
+The main plugin logic is in `main.lua`. It will automatically detect if you have ruby or python installed and use the appropriate script.
+
+## Lua Plugin (`main.lua`)
+
+```lua
 local function command_exists(cmd)
     local f = io.popen("command -v " .. cmd, "r")
     local result = f:read("*a")
@@ -20,8 +36,7 @@ elseif command_exists("python") then
 end
 
 function string:ends_with_char(suffix)
-    return self:sub(- #suffix) == suffix
-    return self:sub(- #suffix) == suffix
+    return self:sub(-#suffix) == suffix
 end
 
 function string:is_path()
@@ -80,13 +95,6 @@ local get_state = ya.sync(function(_, cmd)
             },
         }
     elseif cmd == "rename" and #cx.active.selected == 0 then
-        return {
-            kind = cmd,
-            value = {
-                hovered = tostring(cx.active.current.hovered.url),
-            },
-        }
-    elseif cmd == "open" and #cx.active.selected == 0 then
         return {
             kind = cmd,
             value = {
@@ -195,17 +203,6 @@ local function sudo_rename(value)
     end
 end
 
-local function sudo_open(value)
-    local args = sudo_cmd()
-
-    local file = value.hovered
-
-    local editor = os.getenv("EDITOR") or "vi"
-    extend_list(args, { editor, ya.quote(file) })
-
-    execute(args)
-end
-
 local function sudo_remove(value)
     local args = sudo_cmd()
 
@@ -245,8 +242,216 @@ return {
             sudo_remove(state.value)
         elseif state.kind == "rename" then
             sudo_rename(state.value)
-        elseif state.kind == "open" then
-            sudo_open(state.value)
         end
     end,
 }
+```
+
+## Python Implementation (`assets/fs.py`)
+
+```python
+#!/usr/bin/env python3
+
+import os
+import sys
+import shutil
+import argparse
+
+def legit_name(path):
+    if not os.path.exists(path):
+        return path
+    name, ext = os.path.splitext(path)
+    i = 1
+    while True:
+        new_name = f"{name}_{i}{ext}"
+        if not os.path.exists(new_name):
+            return new_name
+        i += 1
+
+def cp(paths, force=False):
+    for src in paths:
+        dest = os.path.basename(src)
+        if not force:
+            dest = legit_name(dest)
+        if os.path.isdir(src):
+            shutil.copytree(src, dest, dirs_exist_ok=True)
+        else:
+            shutil.copy2(src, dest)
+        print(f"Copied {src} to {dest}")
+
+def mv(paths, force=False):
+    for src in paths:
+        dest = os.path.basename(src)
+        if not force:
+            dest = legit_name(dest)
+        shutil.move(src, dest)
+        print(f"Moved {src} to {dest}")
+
+def ln(paths, relative=False):
+    for src in paths:
+        dest = legit_name(os.path.basename(src))
+        if relative:
+            os.symlink(os.path.relpath(src), dest)
+        else:
+            os.symlink(src, dest)
+        print(f"Linked {src} to {dest}")
+
+def hardlink(paths):
+    for src in paths:
+        dest = legit_name(os.path.basename(src))
+        os.link(src, dest)
+        print(f"Hardlinked {src} to {dest}")
+
+def rm(paths, permanent=False):
+    for path in paths:
+        if permanent:
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+            print(f"Permanently removed {path}")
+        else:
+            # A more robust solution would use a trash library
+            print(f"Moved {path} to trash (simulation)")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Sudo file operations")
+    subparsers = parser.add_subparsers(dest="command")
+
+    cp_parser = subparsers.add_parser("cp")
+    cp_parser.add_argument("paths", nargs="+")
+    cp_parser.add_argument("--force", action="store_true")
+
+    mv_parser = subparsers.add_parser("mv")
+    mv_parser.add_argument("paths", nargs="+")
+    mv_parser.add_argument("--force", action="store_true")
+
+    ln_parser = subparsers.add_parser("ln")
+    ln_parser.add_argument("paths", nargs="+")
+    ln_parser.add_argument("--relative", action="store_true")
+
+    hardlink_parser = subparsers.add_parser("hardlink")
+    hardlink_parser.add_argument("paths", nargs="+")
+
+    rm_parser = subparsers.add_parser("rm")
+    rm_parser.add_argument("paths", nargs="+")
+    rm_parser.add_argument("--permanent", action="store_true")
+
+    args = parser.parse_args()
+
+    if args.command == "cp":
+        cp(args.paths, args.force)
+    elif args.command == "mv":
+        mv(args.paths, args.force)
+    elif args.command == "ln":
+        ln(args.paths, args.relative)
+    elif args.command == "hardlink":
+        hardlink(args.paths)
+    elif args.command == "rm":
+        rm(args.paths, args.permanent)
+
+if __name__ == "__main__":
+    main()
+```
+
+## Ruby Implementation (`assets/fs.rb`)
+
+```ruby
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'optparse'
+
+def legit_name(path)
+  return path unless File.exist?(path)
+
+  name = File.basename(path, ".*")
+  ext = File.extname(path)
+  i = 1
+  loop do
+    new_name = "#{name}_#{i}#{ext}"
+    return new_name unless File.exist?(new_name)
+    i += 1
+  end
+end
+
+def cp(paths, force: false)
+  paths.each do |src|
+    dest = File.basename(src)
+    dest = legit_name(dest) unless force
+    if File.directory?(src)
+      FileUtils.cp_r(src, dest, verbose: true)
+    else
+      FileUtils.cp(src, dest, verbose: true)
+    end
+  end
+end
+
+def mv(paths, force: false)
+  paths.each do |src|
+    dest = File.basename(src)
+    dest = legit_name(dest) unless force
+    FileUtils.mv(src, dest, verbose: true)
+  end
+end
+
+def ln(paths, relative: false)
+  paths.each do |src|
+    dest = legit_name(File.basename(src))
+    if relative
+      FileUtils.ln_s(Pathname.new(src).relative_path_from(Pathname.new(Dir.pwd)), dest, verbose: true)
+    else
+      FileUtils.ln_s(src, dest, verbose: true)
+    end
+  end
+end
+
+def hardlink(paths)
+  paths.each do |src|
+    dest = legit_name(File.basename(src))
+    FileUtils.ln(src, dest, verbose: true)
+  end
+end
+
+def rm(paths, permanent: false)
+  paths.each do |path|
+    if permanent
+      FileUtils.rm_r(path, verbose: true)
+    else
+      # A more robust solution would use a trash library
+      puts "Moved #{path} to trash (simulation)"
+    end
+  end
+end
+
+options = {}
+OptionParser.new do |opts|
+  opts.banner = "Usage: fs.rb [command] [options]"
+
+  opts.on("--force", "Force overwrite") do |f|
+    options[:force] = f
+  end
+  opts.on("--relative", "Create relative symlink") do |r|
+    options[:relative] = r
+  end
+  opts.on("--permanent", "Permanently delete") do |p|
+    options[:permanent] = p
+  end
+end.parse!
+
+command = ARGV.shift
+
+case command
+when "cp"
+  cp(ARGV, force: options[:force])
+when "mv"
+  mv(ARGV, force: options[:force])
+when "ln"
+  ln(ARGV, relative: options[:relative])
+when "hardlink"
+  hardlink(ARGV)
+when "rm"
+  rm(ARGV, permanent: options[:permanent])
+end
+```
