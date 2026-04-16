@@ -18,7 +18,6 @@ $ ya pkg add JohWQ/sudo
 - [x] copy files
 - [x] move files
 - [x] rename file
-- [x] trash files
 - [x] remove files
 - [x] create absolute-path symbolic links
 - [x] create relative-path symbolic links
@@ -81,12 +80,6 @@ desc = "sudo hardlink"
 on = ["R", "a"]
 run = "plugin sudo -- create"
 desc = "sudo create"
-
-# sudo trash
-[[manager.keymap]]
-on = ["R", "d"]
-run = "plugin sudo -- remove"
-desc = "sudo trash"
 
 # sudo delete
 [[manager.keymap]]
